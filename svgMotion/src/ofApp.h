@@ -5,6 +5,9 @@
 #include "ofxSlides.h"
 #include "ofxSvg.h"
 
+#include "Particle.h"
+#include "Spring.h"
+
 class ofApp : public ofBaseApp{
 
 public:
@@ -27,4 +30,7 @@ public:
 	ofEasyCam cam;
 	ofMesh mesh;
 	vector<ofPolyline> polylines;
+	
+	vector<vector<Particle> > particles;
+	vector<vector<Spring> > springs;
 };

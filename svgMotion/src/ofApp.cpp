@@ -4,6 +4,8 @@
 void ofApp::setup(){
 	ofHideCursor();
 	ofSetLogLevel(OF_LOG_VERBOSE);
+	ofSetVerticalSync(true);
+    ofSetFrameRate(60);
 	
 	int count = 0;
 	
@@ -14,15 +16,35 @@ void ofApp::setup(){
 		// svg defaults to non zero winding which doesn't look so good as contours
 		p.setPolyWindingMode(OF_POLY_WINDING_ODD);
 		vector<ofPolyline>& lines = p.getOutline();
+		
 		for(int j=0;j<(int)lines.size();j++){
+			particles.push_back(vector<Particle>());
+			springs.push_back(vector<Spring>());
+			vector<Particle>& ps = particles.at(particles.size() - 1);
+			vector<Spring>& ss = springs.at(springs.size() - 1);
+			
 			polylines.push_back(lines[j].getResampledBySpacing(1));
 			for( int k = 0; k < polylines[polylines.size()-1].size(); k ++ ) {
 				count++;
 			}
 			for( int k = 0; k < polylines[polylines.size()-1].size(); k ++ ) {
+				polylines[polylines.size()-1].getVertices().at(k) -= ofVec2f(svg.getWidth(), svg.getHeight())/2;
 				polylines[polylines.size()-1].getVertices().at(k).y *= -1;
-				polylines[polylines.size()-1].getVertices().at(k) -= ofVec2f(70, -50);
-				polylines[polylines.size()-1].getVertices().at(k) *= 4;
+				polylines[polylines.size()-1].getVertices().at(k) *= 0.75;
+				
+				Particle p;
+				p.friction = 0.02;
+				p.radius = 2;
+				p.setup(polylines[polylines.size()-1].getVertices().at(k), ofVec2f(0, 0));
+				ps.push_back(p);
+				if( k > 0 ) {
+					Spring s;
+					s.distance = ps.at(k-1).position.distance(ps.at(k).position);
+					s.springiness = 0.8;
+					s.particleA = &(ps.at(k-1));
+					s.particleB = &(ps.at(k));
+					ss.push_back(s);
+				}
 			}
 		}
 	}
@@ -36,7 +58,41 @@ void ofApp::setup(){
 
 //--------------------------------------------------------------
 void ofApp::update(){
-
+	for (int i = 0; i < particles.size(); i++){
+		for (int j = 0; j < particles.at(i).size(); j++){
+			particles.at(i).at(j).resetForce();
+		}
+    }
+	ofVec3f mouseXY = ofVec3f(mouseX - ofGetWidth()/2, - mouseY + ofGetHeight()/2, 0.0);
+	
+	if( !isnan(mouseXY.x) && !isnan(mouseXY.y) ) {
+		for (int i = 0; i < particles.size(); i++){
+			for (int j = 0; j < particles.at(i).size(); j++){
+				if(ofGetKeyPressed('a')){
+					particles.at(i).at(j).addAttractionForce(mouseXY.x, mouseXY.y, 100, 2.0);
+				} else {
+					particles.at(i).at(j).addRepulsionForce(mouseXY.x, mouseXY.y, 100, 2.0);
+				}
+				ofVec2f origin(polylines.at(i).getVertices().at(j));
+				particles.at(i).at(j).addAttractionForce(origin.x, origin.y, 10000, 0.5);
+			}
+		}
+	}
+//    for (int i = 0; i < springs.size(); i++){
+//		for (int j = 0; j < springs.at(i).size(); j++){
+//			springs.at(i).at(j).update();
+//		}
+//    }
+    for (int i = 0; i < particles.size(); i++){
+		for (int j = 0; j < particles.at(i).size(); j++){
+			particles.at(i).at(j).updateForce();
+			particles.at(i).at(j).update();
+			ofVec2f origin(polylines.at(i).getVertices().at(j));
+			if(particles.at(i).at(j).position.distance(origin) < 2.f)
+				particles.at(i).at(j).velocity = ofVec2f(0, 0);
+		}
+    }
+	ofSetWindowTitle(ofToString(ofGetFrameRate()));
 }
 
 //--------------------------------------------------------------
@@ -56,18 +112,22 @@ void ofApp::draw(){
 		cam.begin();
 		
 		ofSetColor(color);
-		for (int i = 0; i < (int)polylines.size(); i++){
-			ofPolyline & line = polylines[i];
-			
-			line.draw();
+		for (int i = 0; i < particles.size(); i++){
+			ofBeginShape();
+			ofCurveVertex(particles.at(i).at(0).position.x, particles.at(i).at(0).position.y);
+			for (int j = 0; j < particles.at(i).size(); j++){
+				ofCurveVertex(particles.at(i).at(j).position.x, particles.at(i).at(j).position.y);
+			}
+			ofCurveVertex(particles.at(i).at(particles.at(i).size()-1).position.x, particles.at(i).at(particles.at(i).size()-1).position.y);
+			ofEndShape();
 		}
 		cam.end();
-//		if( s.getElapsed() > 3.f ) s.proceed();
+		//		if( s.getElapsed() > 3.f ) s.proceed();
 	}
 	else if( s++ ) {
 		ofSetColor(color);
 		drawPoints(1, true);
-//		if( s.getElapsed() > 5.f ) s.proceed();
+		//		if( s.getElapsed() > 5.f ) s.proceed();
 	}
 	else if( s++ ) {
 		ofSetColor(color);
