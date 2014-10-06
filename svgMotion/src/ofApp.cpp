@@ -2,6 +2,7 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+	ofHideCursor();
 	ofSetLogLevel(OF_LOG_VERBOSE);
 	
 	int count = 0;
