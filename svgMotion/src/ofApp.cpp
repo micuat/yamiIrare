@@ -19,11 +19,11 @@ void ofApp::setup(){
 		
 		for(int j=0;j<(int)lines.size();j++){
 			particles.push_back(vector<Particle>());
-			springs.push_back(vector<Spring>());
+			particlesLight.push_back(vector<Particle>());
 			vector<Particle>& ps = particles.at(particles.size() - 1);
-			vector<Spring>& ss = springs.at(springs.size() - 1);
+			vector<Particle>& ls = particlesLight.at(particlesLight.size() - 1);
 			
-			polylines.push_back(lines[j].getResampledBySpacing(1));
+			polylines.push_back(lines[j].getResampledBySpacing(10));
 			for( int k = 0; k < polylines[polylines.size()-1].size(); k ++ ) {
 				count++;
 			}
@@ -37,14 +37,7 @@ void ofApp::setup(){
 				p.radius = 2;
 				p.setup(polylines[polylines.size()-1].getVertices().at(k), ofVec2f(0, 0));
 				ps.push_back(p);
-				if( k > 0 ) {
-					Spring s;
-					s.distance = ps.at(k-1).position.distance(ps.at(k).position);
-					s.springiness = 0.8;
-					s.particleA = &(ps.at(k-1));
-					s.particleB = &(ps.at(k));
-					ss.push_back(s);
-				}
+				ls.push_back(p);
 			}
 		}
 	}
@@ -61,35 +54,46 @@ void ofApp::update(){
 	for (int i = 0; i < particles.size(); i++){
 		for (int j = 0; j < particles.at(i).size(); j++){
 			particles.at(i).at(j).resetForce();
+			particlesLight.at(i).at(j).resetForce();
 		}
     }
 	ofVec3f mouseXY = ofVec3f(mouseX - ofGetWidth()/2, - mouseY + ofGetHeight()/2, 0.0);
+	float t = ofGetElapsedTimef();
+	//ofVec3f mouseXY = ofVec3f(200*sin(4*t)*cos(t), 200*sin(4*t)*sin(t), 0.0);
+	//ofVec3f mouseXY = ofVec3f(200*cos(t), 200*sin(8*t), 0.0);
 	
 	if( !isnan(mouseXY.x) && !isnan(mouseXY.y) ) {
 		for (int i = 0; i < particles.size(); i++){
 			for (int j = 0; j < particles.at(i).size(); j++){
 				if(ofGetKeyPressed('a')){
-					particles.at(i).at(j).addAttractionForce(mouseXY.x, mouseXY.y, 100, 2.0);
+					particles.at(i).at(j).addAttractionForce(mouseXY.x, mouseXY.y, 150, 1.0);
+					particlesLight.at(i).at(j).addAttractionForce(mouseXY.x, mouseXY.y, 200, 1.5);
+					particles.at(i).at(j).addAttractionForce(-mouseXY.x, -mouseXY.y, 150, 1.0);
+					particlesLight.at(i).at(j).addAttractionForce(-mouseXY.x, -mouseXY.y, 200, 1.5);
 				} else {
-					particles.at(i).at(j).addRepulsionForce(mouseXY.x, mouseXY.y, 100, 2.0);
+					particles.at(i).at(j).addRepulsionForce(mouseXY.x, mouseXY.y, 150, 2.0*ofNoise(ofGetElapsedTimef(), (float)i/particles.size()));
+					particlesLight.at(i).at(j).addRepulsionForce(mouseXY.x, mouseXY.y, 200, 4.0*ofNoise(ofGetElapsedTimef()));
+					particles.at(i).at(j).addRepulsionForce(-mouseXY.x, -mouseXY.y, 150, 2.0*ofNoise(ofGetElapsedTimef(), (float)i/particles.size()));
+					particlesLight.at(i).at(j).addRepulsionForce(-mouseXY.x, -mouseXY.y, 200, 4.0*ofNoise(ofGetElapsedTimef()));
 				}
 				ofVec2f origin(polylines.at(i).getVertices().at(j));
 				particles.at(i).at(j).addAttractionForce(origin.x, origin.y, 10000, 0.5);
+				particlesLight.at(i).at(j).addAttractionForce(origin.x, origin.y, 10000, 0.5);
 			}
 		}
 	}
-//    for (int i = 0; i < springs.size(); i++){
-//		for (int j = 0; j < springs.at(i).size(); j++){
-//			springs.at(i).at(j).update();
-//		}
-//    }
     for (int i = 0; i < particles.size(); i++){
 		for (int j = 0; j < particles.at(i).size(); j++){
 			particles.at(i).at(j).updateForce();
+			particlesLight.at(i).at(j).updateForce();
 			particles.at(i).at(j).update();
+			particlesLight.at(i).at(j).update();
+			
 			ofVec2f origin(polylines.at(i).getVertices().at(j));
 			if(particles.at(i).at(j).position.distance(origin) < 2.f)
 				particles.at(i).at(j).velocity = ofVec2f(0, 0);
+			if(particlesLight.at(i).at(j).position.distance(origin) < 2.f)
+				particlesLight.at(i).at(j).velocity = ofVec2f(0, 0);
 		}
     }
 	ofSetWindowTitle(ofToString(ofGetFrameRate()));
@@ -107,27 +111,62 @@ void ofApp::draw(){
 	ofFill();
 	
 	if( s++ ) {
-		ofSetLineWidth(1);
+		ofSetLineWidth(2);
+		glPointSize(2.0);
 		ofNoFill();
 		cam.begin();
 		
-		ofSetColor(color);
+		ofMesh meshPoints;
+		meshPoints.setMode(OF_PRIMITIVE_POINTS);
 		for (int i = 0; i < particles.size(); i++){
-			ofBeginShape();
-			ofCurveVertex(particles.at(i).at(0).position.x, particles.at(i).at(0).position.y);
 			for (int j = 0; j < particles.at(i).size(); j++){
-				ofCurveVertex(particles.at(i).at(j).position.x, particles.at(i).at(j).position.y);
+				ofPoint solid = particles.at(i).at(j).position;
+				ofPoint light = particlesLight.at(i).at(j).position;
+				float res = 8.0;
+				for( int k = res/2; k < res; k++ ) {
+					meshPoints.addVertex(solid.getInterpolated(light, k / res));
+					meshPoints.addColor(color.getLerped(ofColor(0, 0, 0, 0), k / res));
+				}
 			}
-			ofCurveVertex(particles.at(i).at(particles.at(i).size()-1).position.x, particles.at(i).at(particles.at(i).size()-1).position.y);
-			ofEndShape();
 		}
+		meshPoints.draw();
+		ofEnableBlendMode(OF_BLENDMODE_ADD);
+		for( int k = 0; k < 3; k++ ) {
+			switch (k) {
+				case 0:
+					ofSetColor(255, 0, 0, 100);
+					break;
+				case 1:
+					ofSetColor(0, 255, 0, 100);
+					break;
+				case 2:
+					ofSetColor(0, 0, 255, 100);
+					break;
+				default:
+					break;
+			}
+			//ofSetColor(color);
+			for (int i = 0; i < particles.size(); i++){
+				ofBeginShape();
+				for (int j = 0; j < particles.at(i).size(); j++){
+					ofPoint solid = particles.at(i).at(j).position;
+					ofPoint light = particlesLight.at(i).at(j).position;
+					ofPoint inter = solid.getInterpolated(light, k / 32.0);
+					ofCurveVertex(inter.x, inter.y);
+					if( j == 0 || j == particles.at(i).size() - 1 ) {
+						ofCurveVertex(inter.x, inter.y);
+					}
+				}
+				ofEndShape();
+			}
+		}
+		ofDisableBlendMode();
+		
 		cam.end();
-		//		if( s.getElapsed() > 3.f ) s.proceed();
 	}
 	else if( s++ ) {
 		ofSetColor(color);
 		drawPoints(1, true);
-		//		if( s.getElapsed() > 5.f ) s.proceed();
 	}
 	else if( s++ ) {
 		ofSetColor(color);

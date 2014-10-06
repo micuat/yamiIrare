@@ -32,5 +32,5 @@ public:
 	vector<ofPolyline> polylines;
 	
 	vector<vector<Particle> > particles;
-	vector<vector<Spring> > springs;
+	vector<vector<Particle> > particlesLight;
 };
